@@ -2,8 +2,8 @@ name: OCI Ampere A1 Instance Creator
 
 on:
   schedule:
-    - cron: '*/10 * * * *'  # Runs every 10 minutes
-  workflow_dispatch:         # Allows manual trigger too
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
 
 jobs:
   create-instance:
@@ -19,13 +19,19 @@ jobs:
       - name: Install dependencies
         run: composer install --no-dev
 
+      - name: Write OCI private key to file
+        run: |
+          mkdir -p ~/.oci
+          echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+
       - name: Create OCI instance
         env:
           OCI_REGION: ${{ secrets.OCI_REGION }}
           OCI_USER_ID: ${{ secrets.OCI_USER_ID }}
           OCI_TENANCY_ID: ${{ secrets.OCI_TENANCY_ID }}
           OCI_KEY_FINGERPRINT: ${{ secrets.OCI_KEY_FINGERPRINT }}
-          OCI_PRIVATE_KEY: ${{ secrets.OCI_PRIVATE_KEY }}
+          OCI_PRIVATE_KEY_FILENAME: /home/runner/.oci/oci_api_key.pem
           OCI_SUBNET_ID: ${{ secrets.OCI_SUBNET_ID }}
           OCI_IMAGE_ID: ${{ secrets.OCI_IMAGE_ID }}
           OCI_COMPARTMENT_ID: ${{ secrets.OCI_COMPARTMENT_ID }}
