@@ -1,66 +1,64 @@
-name: OCI MAX Ampere A1 (4/24 Single Instance)
+name: OCI MAX Ampere A1
 on:
   schedule:
     - cron: '0 */4 * * *'
   workflow_dispatch:
 
 jobs:
-  create-max-ampere:
+  create-ampere:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+    - uses: actions/checkout@v3
+    
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.1'
+        
+    - name: Install
+      run: composer install --no-dev
       
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.1'
-          
-      - name: Install dependencies
-        run: composer install --no-dev
-
-      - name: Setup OCI Auth
-        run: |
-          mkdir -p ~/.oci
-          echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
-          chmod 600 ~/.oci/oci_api_key.pem
-
-      - name: Check A1.Flex 4/24 Capacity
-        id: capacity
-        env:
-          OCI_REGION: ${{ secrets.OCI_REGION }}
-          OCI_USER_ID: ${{ secrets.OCI_USER_ID }}
-          OCI_TENANCY_ID: ${{ secrets.OCI_TENANCY_ID }}
-          OCI_KEY_FINGERPRINT: ${{ secrets.OCI_KEY_FINGERPRINT }}
-          OCI_PRIVATE_KEY_FILENAME: /home/runner/.oci/oci_api_key.pem
-          OCI_COMPARTMENT_ID: ${{ secrets.OCI_COMPARTMENT_ID }}
-        run: |
-          echo "Testing ap-mumbai-1 A1.Flex capacity..."
-          if php check-capacity.php; then
-            echo "capacity=available" >> $GITHUB_OUTPUT
-            echo "✅ Capacity OK"
-          else
-            echo "capacity=unavailable" >> $GITHUB_OUTPUT
-            echo "❌ No capacity, skipping"
-            exit 0
-          fi
-
-      - name: Create SINGLE MAX A1.Flex (4/24)
-        if: steps.capacity.outputs.capacity == 'available'
-        env:
-          OCI_REGION: ${{ secrets.OCI_REGION }}
-          OCI_USER_ID: ${{ secrets.OCI_USER_ID }}
-          OCI_TENANCY_ID: ${{ secrets.OCI_TENANCY_ID }}
-          OCI_KEY_FINGERPRINT: ${{ secrets.OCI_KEY_FINGERPRINT }}
-          OCI_PRIVATE_KEY_FILENAME: /home/runner/.oci/oci_api_key.pem
-          OCI_SUBNET_ID: ${{ secrets.OCI_SUBNET_ID }}
-          OCI_IMAGE_ID: ${{ secrets.OCI_IMAGE_ID }}
-          OCI_COMPARTMENT_ID: ${{ secrets.OCI_COMPARTMENT_ID }}
-          OCI_SHAPE: VM.Standard.A1.Flex
-          OCI_OCPUS: '4'
-          OCI_MEMORY_IN_GBS: '24'
-          OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
-        run: php index.php
-
-      - name: Status Report
-        if: always()
-        run: echo "Workflow complete. Check OCI Console: ap-mumbai-1"
+    - name: OCI Auth
+      run: |
+        mkdir -p ~/.oci
+        echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
+        chmod 600 ~/.oci/oci_api_key.pem
+        
+    - name: Capacity Check
+      id: cap
+      env:
+        OCI_REGION: ${{ secrets.OCI_REGION }}
+        OCI_USER_ID: ${{ secrets.OCI_USER_ID }}
+        OCI_TENANCY_ID: ${{ secrets.OCI_TENANCY_ID }}
+        OCI_KEY_FINGERPRINT: ${{ secrets.OCI_KEY_FINGERPRINT }}
+        OCI_COMPARTMENT_ID: ${{ secrets.OCI_COMPARTMENT_ID }}
+      run: |
+        echo "Checking ap-mumbai-1 A1.Flex..."
+        if php check-capacity.php; then
+          echo "cap=ok" >> $GITHUB_OUTPUT
+          echo "✅ Capacity OK"
+        else
+          echo "cap=no" >> $GITHUB_OUTPUT
+          echo "❌ No capacity - skipping"
+        fi
+        
+    - name: Create Instance
+      if: steps.cap.outputs.cap == 'ok'
+      env:
+        OCI_REGION: ${{ secrets.OCI_REGION }}
+        OCI_USER_ID: ${{ secrets.OCI_USER_ID }}
+        OCI_TENANCY_ID: ${{ secrets.OCI_TENANCY_ID }}
+        OCI_KEY_FINGERPRINT: ${{ secrets.OCI_KEY_FINGERPRINT }}
+        OCI_PRIVATE_KEY_FILENAME: /home/runner/.oci/oci_api_key.pem
+        OCI_COMPARTMENT_ID: ${{ secrets.OCI_COMPARTMENT_ID }}
+        OCI_SUBNET_ID: ${{ secrets.OCI_SUBNET_ID }}
+        OCI_IMAGE_ID: ${{ secrets.OCI_IMAGE_ID }}
+        OCI_SHAPE: VM.Standard.A1.Flex
+        OCI_OCPUS: '4'
+        OCI_MEMORY_IN_GBS: '24'
+        OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
+      run: php index.php
+      
+    - name: Status Report
+      if: always()
+      run: echo "Complete. Check OCI Console ap-mumbai-1"
