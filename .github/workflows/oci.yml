@@ -16,7 +16,7 @@ jobs:
         php-version: '8.1'
         
     - name: Install
-      run: composer install --no-dev
+      run: composer update --no-dev
       
     - name: OCI Auth
       run: |
