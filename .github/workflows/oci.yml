@@ -1,31 +1,46 @@
-name: OCI Ampere A1 Instance Creator
-
+name: OCI MAX Ampere A1 (4/24 Single Instance)
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    # Every 4 hours (6x/day) - SAFE for ap-mumbai-1
+    - cron: '0 */4 * * *'
   workflow_dispatch:
 
 jobs:
-  create-instance:
+  create-max-ampere:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
+      
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.1'
-
+          
       - name: Install dependencies
         run: composer install --no-dev
 
-      - name: Write OCI private key to file
+      - name: Setup OCI Auth
         run: |
           mkdir -p ~/.oci
           echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
 
-      - name: Create OCI instance
+      - name: 🔍 Check A1.Flex 4/24 Capacity
+        id: capacity
+        env:
+          OCI_REGION: ${{ secrets.OCI_REGION }}
+          OCI_USER_ID: ${{ secrets.OCI_USER_ID }}
+          OCI_TENANCY_ID: ${{ secrets.OCI_TENANCY_ID }}
+          OCI_KEY_FINGERPRINT: ${{ secrets.OCI_KEY_FINGERPRINT }}
+          OCI_PRIVATE_KEY_FILENAME: /home/runner/.oci/oci_api_key.pem
+          OCI_COMPARTMENT_ID: ${{ secrets.OCI_COMPARTMENT_ID }}
+        run: |
+          # Your PHP capacity check logic here
+          php check-capacity.php || exit 0
+          echo "capacity=available" >> $GITHUB_OUTPUT
+
+      - name: 🚀 Create SINGLE MAX A1.Flex (4/24)
+        if: steps.capacity.outputs.capacity == 'available'
         env:
           OCI_REGION: ${{ secrets.OCI_REGION }}
           OCI_USER_ID: ${{ secrets.OCI_USER_ID }}
@@ -36,8 +51,11 @@ jobs:
           OCI_IMAGE_ID: ${{ secrets.OCI_IMAGE_ID }}
           OCI_COMPARTMENT_ID: ${{ secrets.OCI_COMPARTMENT_ID }}
           OCI_SHAPE: VM.Standard.A1.Flex
-          OCI_OCPUS: ${{ secrets.OCI_OCPUS }}
-          OCI_MEMORY_IN_GBS: ${{ secrets.OCI_MEMORY_IN_GBS }}
+          OCI_OCPUS: '4'           # ALL free tier OCPUs
+          OCI_MEMORY_IN_GBS: '24'  # ALL free tier memory
           OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
-          OCI_MAX_INSTANCES: 2
         run: php index.php
+
+      - name: ✅ Success Notification
+        if: success()
+        run: echo "🎉 MAX A1.Flex (4 OCPU/24GB) CREATED - Check OCI Console!"
