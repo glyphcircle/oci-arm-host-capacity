@@ -1,7 +1,7 @@
 name: OCI MAX Ampere A1 (4/24 Single Instance)
 on:
   schedule:
-    - cron: '0 */4 * * *'  # Every 4 hours ✅
+    - cron: '0 */4 * * *'
   workflow_dispatch:
 
 jobs:
@@ -24,7 +24,7 @@ jobs:
           echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
 
-      - name: 🔍 Check A1.Flex 4/24 Capacity
+      - name: Check A1.Flex 4/24 Capacity
         id: capacity
         env:
           OCI_REGION: ${{ secrets.OCI_REGION }}
@@ -34,10 +34,17 @@ jobs:
           OCI_PRIVATE_KEY_FILENAME: /home/runner/.oci/oci_api_key.pem
           OCI_COMPARTMENT_ID: ${{ secrets.OCI_COMPARTMENT_ID }}
         run: |
-          echo "Checking ap-mumbai-1 A1.Flex capacity..."
-          php check-capacity.php && echo "capacity=available" >> $GITHUB_OUTPUT || echo "No capacity, skipping"
+          echo "Testing ap-mumbai-1 A1.Flex capacity..."
+          if php check-capacity.php; then
+            echo "capacity=available" >> $GITHUB_OUTPUT
+            echo "✅ Capacity OK"
+          else
+            echo "capacity=unavailable" >> $GITHUB_OUTPUT
+            echo "❌ No capacity, skipping"
+            exit 0
+          fi
 
-      - name: 🚀 Create SINGLE MAX A1.Flex (4/24)
+      - name: Create SINGLE MAX A1.Flex (4/24)
         if: steps.capacity.outputs.capacity == 'available'
         env:
           OCI_REGION: ${{ secrets.OCI_REGION }}
@@ -54,6 +61,6 @@ jobs:
           OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
         run: php index.php
 
-      - name: 📊 Status Report
+      - name: Status Report
         if: always()
         run: echo "Workflow complete. Check OCI Console: ap-mumbai-1"
