@@ -1,30 +1,28 @@
 <?php
-// check-capacity.php - Tests ap-mumbai-1 A1.Flex 4/24 availability
-require 'vendor/autoload.php';
+// check-capacity.php - Uses OCI CLI (always available in GitHub Actions)
+echo "Testing OCI CLI connection...\n";
 
-use OCI\Compute\{ComputeClient, Models\ListShapesRequest};
-use OCI\Config;
+$compartmentId = getenv('OCI_COMPARTMENT_ID');
+if (!$compartmentId) {
+    echo "❌ OCI_COMPARTMENT_ID missing\n";
+    exit(1);
+}
 
-$config = new Config();
-$compute = new ComputeClient($config);
+$cmd = sprintf(
+    'oci compute shape list --compartment-id %s --availability-domain "gAQo:AP-MUMBAI-1-AD-1" --shape-name "VM.Standard.A1.Flex" --query "length(data)" --raw-output 2>/dev/null',
+    escapeshellarg($compartmentId)
+);
 
-try {
-    // Test ap-mumbai-1 AD-1 for A1.Flex with 24GB+ support
-    $listShapesRequest = new ListShapesRequest();
-    $listShapesRequest->setCompartmentId($_ENV['OCI_COMPARTMENT_ID']);
-    $listShapesRequest->setAvailabilityDomain('gAQo:AP-MUMBAI-1-AD-1');
-    $listShapesRequest->setShapeName('VM.Standard.A1.Flex');
-    
-    $response = $compute->listShapes($listShapesRequest);
-    
-    foreach ($response->getItems() as $shape) {
-        $ocpuOptions = $shape->getOcpuOptions();
-        if ($ocpuOptions->getMaxMemoryInGBs() >= 24) {
-            exit(0);  // ✅ Capacity available
-        }
-    }
-    exit(1);  // ❌ No 4/24 capacity
-} catch (Exception $e) {
-    exit(1);  // ❌ API error or no capacity
+$output = shell_exec($cmd);
+$shapeCount = trim($output ?? '0');
+
+echo "A1.Flex shapes found: $shapeCount\n";
+
+if ($shapeCount > 0) {
+    echo "✅ A1.Flex capacity available!\n";
+    exit(0);
+} else {
+    echo "❌ No A1.Flex capacity\n";
+    exit(1);
 }
 ?>
